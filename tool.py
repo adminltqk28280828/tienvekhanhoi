@@ -13,7 +13,28 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+# --- TÍCH HỢP FLASK ĐỂ CHẠY TRÊN RENDER ---
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "QUOC KHANH MEDIA System is Online!"
+
+def run():
+    # Render cấp cổng qua biến môi trường PORT, mặc định là 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+# ------------------------------------------
+
 # --- THÔNG TIN CẤU HÌNH ---
+# Khuyên dùng: os.getenv để bảo mật hơn trên Render
 TOKEN = "8562421632:AAEqooqs8sqi5DSincjE1l3Ld53YkBBI0yw"
 ADMIN_ID = 6684980246
 BRAND = "QUOC KHANH MEDIA"
@@ -69,6 +90,7 @@ class QKMediaAutomation:
         self.options.add_argument("--headless")
         self.options.add_argument("--disable-gpu")
         self.options.add_argument("--no-sandbox")
+        self.options.add_argument("--disable-dev-shm-usage") # Thêm để ổn định trên Render
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options)
         self.wait = WebDriverWait(self.driver, 10)
 
@@ -144,12 +166,12 @@ def create_bill(message):
         bot.send_message(ADMIN_ID, "🚀 Đã phát sóng bảng Bill!")
     except: bot.reply_to(message, "⚠️ Lỗi định dạng |")
 
-# --- XỬ LÝ AUTOMATION (CATCH-ALL) ---
+# --- XỬ LÝ AUTOMATION ---
 @bot.message_handler(func=lambda message: True)
 def handle_automation(message):
     global is_running, stop_flag
     if message.from_user.id != ADMIN_ID: return
-    if ':::' not in message.text: return # Bỏ qua nếu không đúng cấu hình
+    if ':::' not in message.text: return 
     
     if is_running: return bot.reply_to(message, "⚠️ Hệ thống đang bận!")
 
@@ -160,17 +182,15 @@ def handle_automation(message):
         is_running, stop_flag = True, False
         auto = QKMediaAutomation()
         
-        # Bắt đầu vòng lặp
         for i in range(1, repeat + 1):
             if stop_flag: break
             
-            # Logic update tiến trình cho mọi người
             progress_msg = (f"🚀 <b>{BRAND} - MONITOR</b>\n"
                             f"🎯 Mục tiêu: <code>{target}</code>\n"
                             f"📊 Lượt: {i}/{repeat}\n Trạng thái: <b>ĐANG CHẠY</b>")
             broadcast_all(progress_msg)
             
-            time.sleep(5) # Giả lập thời gian chạy selenium
+            time.sleep(5) 
 
         auto.driver.quit()
         is_running = False
@@ -182,5 +202,9 @@ def handle_automation(message):
 
 bot.callback_query_handler(func=lambda call: True)(lambda call: bot.answer_callback_query(call.id, "Đã ghi nhận"))
 
-print("--- HỆ THỐNG HỢP NHẤT QUỐC KHÁNH MEDIA ĐÃ ONLINE ---")
-bot.infinity_polling()
+if __name__ == "__main__":
+    # KHỞI CHẠY WEB SERVER GIỮ THỨC
+    keep_alive()
+    print("--- HỆ THỐNG HỢP NHẤT QUỐC KHÁNH MEDIA ĐÃ ONLINE (RENDER MODE) ---")
+    # KHỞI CHẠY BOT
+    bot.infinity_polling()
